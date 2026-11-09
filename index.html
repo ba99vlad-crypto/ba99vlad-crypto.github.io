@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="color-scheme" content="dark light">
+<title>Сон</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root {
+  --bg: #f4f5fb;
+  --surface: #ffffff;
+  --surface-2: #eceef8;
+  --text: #12142a;
+  --muted: #6b7094;
+  --accent: #5b5bf0;
+  --accent-soft: rgba(91, 91, 240, .12);
+  --good: #12a36b;
+  --good-soft: rgba(18, 163, 107, .14);
+  --border: rgba(18, 20, 42, .08);
+  --shadow: 0 6px 24px rgba(30, 30, 80, .08);
+  --radius: 20px;
+}
+:root[data-theme="dark"] {
+  --bg: #0b0d1f;
+  --surface: #151833;
+  --surface-2: #1d2142;
+  --text: #f1f2ff;
+  --muted: #8d92bb;
+  --accent: #8b8cff;
+  --accent-soft: rgba(139, 140, 255, .16);
+  --good: #5ef0aa;
+  --good-soft: rgba(94, 240, 170, .14);
+  --border: rgba(255, 255, 255, .07);
+  --shadow: 0 8px 28px rgba(0, 0, 0, .35);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+.app { max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+/* Header */
+.hero {
+  position: relative; overflow: hidden;
+  padding: 22px 20px 20px;
+  border-radius: 28px;
+  background: linear-gradient(145deg, #3b3fd8 0%, #6a4cf0 55%, #8e5cf5 100%);
+  color: #fff; box-shadow: var(--shadow);
+}
+.hero::before, .hero::after {
+  content: ""; position: absolute; border-radius: 50%; pointer-events: none;
+  background: rgba(255,255,255,.1);
+}
+.hero::before { width: 180px; height: 180px; right: -50px; top: -70px; }
+.hero::after { width: 90px; height: 90px; right: 40px; bottom: -40px; background: rgba(255,255,255,.07); }
+.hero .label { font-size: 13px; opacity: .8; letter-spacing: .02em; }
+.hero .clock { font-size: 56px; font-weight: 700; letter-spacing: -.03em; line-height: 1.05; margin: 4px 0 6px; font-variant-numeric: tabular-nums; }
+.hero .hint { font-size: 14px; opacity: .88; max-width: 85%; line-height: 1.35; }
+.moon { position: absolute; right: 20px; top: 20px; font-size: 28px; }
+
+/* Segmented control */
+.seg {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr;
+  background: var(--surface-2); border-radius: 14px; padding: 4px;
+}
+.seg button {
+  position: relative; z-index: 1; border: 0; background: none; color: var(--muted);
+  font: 600 14px/1 inherit; font-family: inherit; padding: 13px 8px; min-height: 44px;
+  border-radius: 11px; cursor: pointer; transition: color .2s;
+}
+.seg button[aria-selected="true"] { color: var(--text); }
+.seg .thumb {
+  position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px);
+  background: var(--surface); border-radius: 11px; box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  transition: transform .28s cubic-bezier(.3,.9,.3,1);
+}
+.seg[data-mode="wake"] .thumb { transform: translateX(100%); }
+
+/* Wake time picker */
+.picker {
+  display: none; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; box-shadow: var(--shadow);
+}
+.picker.show { display: flex; animation: rise .3s ease both; }
+.picker span { font-size: 15px; color: var(--muted); }
+.picker input {
+  font: 700 28px/1 inherit; font-family: inherit; color: var(--text);
+  background: var(--surface-2); border: 0; border-radius: 12px; padding: 10px 14px;
+  min-height: 48px; font-variant-numeric: tabular-nums; outline: none;
+}
+.picker input:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+
+/* Section title */
+.section { display: flex; align-items: baseline; justify-content: space-between; padding: 0 4px; }
+.section h2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.section small { color: var(--muted); font-size: 12px; }
+
+/* Result cards */
+.list { display: flex; flex-direction: column; gap: 10px; }
+.card {
+  position: relative; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px 16px; box-shadow: var(--shadow); cursor: pointer;
+  transition: transform .15s ease; animation: rise .35s ease both;
+}
+.card:active { transform: scale(.985); }
+.card.best { border-color: var(--good); background: linear-gradient(180deg, var(--good-soft), var(--surface) 70%); }
+.card .time { font-size: 34px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+.card .time small { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 6px; letter-spacing: 0; }
+.chip {
+  justify-self: end; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent); white-space: nowrap;
+}
+.card.best .chip { background: var(--good); color: #05140d; }
+.card .meta { font-size: 13px; color: var(--muted); }
+.card .meta b { color: var(--text); font-weight: 600; }
+.bar { grid-column: 1 / -1; height: 6px; border-radius: 6px; background: var(--surface-2); overflow: hidden; margin-top: 8px; }
+.bar i { display: block; height: 100%; border-radius: 6px; background: var(--accent); transform-origin: left; animation: grow .6s cubic-bezier(.3,.9,.3,1) both; }
+.card.best .bar i { background: var(--good); }
+
+/* Settings */
+.settings {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); overflow: hidden;
+}
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+.row + .row { border-top: 1px solid var(--border); }
+.row .t { font-size: 15px; }
+.row .d { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.stepper { display: flex; align-items: center; gap: 4px; background: var(--surface-2); border-radius: 12px; padding: 3px; }
+.stepper button {
+  width: 44px; height: 40px; border: 0; border-radius: 10px; background: var(--surface); color: var(--text);
+  font-size: 20px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.stepper button:active { background: var(--accent-soft); }
+.stepper output { min-width: 60px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; font-size: 15px; }
+
+.foot { text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; padding: 4px 12px; }
+
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<main class="app">
+  <section class="hero" aria-live="polite">
+    <div class="moon" aria-hidden="true">🌙</div>
+    <div class="label" id="dateLabel">Сейчас</div>
+    <div class="clock" id="clock">--:--</div>
+    <div class="hint" id="hint">Проснись в конце цикла сна — и встанешь легче.</div>
+  </section>
+
+  <div class="seg" id="seg" data-mode="now" role="tablist" aria-label="Режим">
+    <div class="thumb"></div>
+    <button role="tab" aria-selected="true" data-mode="now">Лягу сейчас</button>
+    <button role="tab" aria-selected="false" data-mode="wake">Хочу встать в…</button>
+  </div>
+
+  <div class="picker" id="picker">
+    <span>Подъём в</span>
+    <input type="time" id="wakeInput" value="07:00" aria-label="Время подъёма">
+  </div>
+
+  <div class="section">
+    <h2 id="listTitle">Лучшее время подъёма</h2>
+    <small id="listSub"></small>
+  </div>
+  <div class="list" id="list"></div>
+
+  <div class="section"><h2>Настройки</h2></div>
+  <div class="settings">
+    <div class="row">
+      <div><div class="t">Засыпаю за</div><div class="d">обычно 10–20 минут</div></div>
+      <div class="stepper" data-key="fall" data-step="5" data-min="5" data-max="45">
+        <button type="button" data-dir="-1" aria-label="Меньше">−</button>
+        <output id="fallOut">15 мин</output>
+        <button type="button" data-dir="1" aria-label="Больше">+</button>
+      </div>
+    </div>
+    <div class="row">
+      <div><div class="t">Длина цикла</div><div class="d">у большинства 80–110 минут</div></div>
+      <div class="stepper" data-key="cycle" data-step="5" data-min="70" data-max="120">
+        <button type="button" data-dir="-1" aria-label="Меньше">−</button>
+        <output id="cycleOut">90 мин</output>
+        <button type="button" data-dir="1" aria-label="Больше">+</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">Это усреднённая модель. Реальные циклы отличаются на 5–15 минут.<br>Не заменяет совет врача при проблемах со сном.</p>
+</main>
+
+<script>
+(() => {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const $ = (id) => document.getElementById(id);
+  const pad = (n) => String(n).padStart(2, "0");
+  const fmt = (d) => pad(d.getHours()) + ":" + pad(d.getMinutes());
+  const num = (x) => String(x).replace(".", ",");
+  const haptic = (kind) => { try { tg && tg.HapticFeedback && (kind === "tap" ? tg.HapticFeedback.selectionChanged() : tg.HapticFeedback.impactOccurred("light")); } catch (e) {} };
+
+  // State
+  const state = { mode: "now", fall: 15, cycle: 90, wake: "07:00" };
+  try { Object.assign(state, JSON.parse(localStorage.getItem("sleepcalc") || "{}")); } catch (e) {}
+  const save = () => { try { localStorage.setItem("sleepcalc", JSON.stringify(state)); } catch (e) {} };
+
+  // Telegram integration + theme
+  function applyTheme() {
+    const scheme = tg && tg.colorScheme ? tg.colorScheme : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.dataset.theme = scheme;
+    const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+    try { tg && tg.setHeaderColor && tg.setHeaderColor(bg); tg.setBackgroundColor && tg.setBackgroundColor(bg); } catch (e) {}
+  }
+  if (tg) { tg.ready(); tg.expand(); tg.onEvent && tg.onEvent("themeChanged", applyTheme); }
+  applyTheme();
+
+  const LABELS = {
+    3: ["Минимум", "4,5 ч — на крайний случай"],
+    4: ["Нормально", "6 ч — можно, но впритык"],
+    5: ["Оптимально", "7,5 ч — золотая середина"],
+    6: ["Максимум", "9 ч — для восстановления"]
+  };
+  const CYCLES = [5, 6, 4, 3]; // порядок вывода: лучший первым
+
+  function render() {
+    const now = new Date();
+    $("clock").textContent = fmt(now);
+    $("dateLabel").textContent = now.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" });
+    $("fallOut").textContent = state.fall + " мин";
+    $("cycleOut").textContent = state.cycle + " мин";
+
+    const seg = $("seg");
+    seg.dataset.mode = state.mode;
+    seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", b.dataset.mode === state.mode));
+    $("picker").classList.toggle("show", state.mode === "wake");
+    $("wakeInput").value = state.wake;
+
+    let items = [];
+    if (state.mode === "now") {
+      const start = new Date(now.getTime() + state.fall * 60000);
+      $("hint").textContent = "Если уснёшь примерно в " + fmt(start) + ", вот когда проснуться легче всего.";
+      $("listTitle").textContent = "Лучшее время подъёма";
+      $("listSub").textContent = "ляжешь сейчас";
+      items = CYCLES.map(c => {
+        const t = new Date(start.getTime() + c * state.cycle * 60000);
+        const sameDay = t.toDateString() === now.toDateString();
+        return { c, t, day: sameDay ? "" : "завтра" };
+      });
+    } else {
+      const [h, m] = state.wake.split(":").map(Number);
+      const wake = new Date(now); wake.setHours(h, m, 0, 0);
+      if (wake <= now) wake.setDate(wake.getDate() + 1);
+      $("hint").textContent = "Чтобы встать в " + state.wake + " бодрым, ложись в одно из этих времён.";
+      $("listTitle").textContent = "Когда лечь спать";
+      $("listSub").textContent = "подъём в " + state.wake;
+      items = CYCLES.map(c => {
+        const t = new Date(wake.getTime() - (c * state.cycle + state.fall) * 60000);
+        const sameDay = t.toDateString() === now.toDateString();
+        return { c, t, day: sameDay ? "сегодня" : "вчера" };
+      });
+    }
+
+    $("list").innerHTML = items.map((it, i) => {
+      const hours = (it.c * state.cycle) / 60;
+      const pct = Math.min(100, Math.round(hours / 9.5 * 100));
+      const [chip, desc] = LABELS[it.c];
+      return `<article class="card ${it.c === 5 ? "best" : ""}" style="animation-delay:${i * 50}ms" tabindex="0">
+        <div class="time">${fmt(it.t)}${it.day ? `<small>${it.day}</small>` : ""}</div>
+        <span class="chip">${it.c === 5 ? "★ " : ""}${chip}</span>
+        <div class="meta"><b>${num(Math.round(hours * 10) / 10)} ч</b> · ${it.c} ${it.c < 5 ? "цикла" : "циклов"}</div>
+        <div class="meta" style="text-align:right">${desc.split("—")[1].trim()}</div>
+        <div class="bar"><i style="width:${pct}%"></i></div>
+      </article>`;
+    }).join("");
+  }
+
+  // Events
+  $("seg").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b || b.dataset.mode === state.mode) return;
+    state.mode = b.dataset.mode; save(); haptic("tap"); render();
+  });
+  $("wakeInput").addEventListener("change", (e) => { if (e.target.value) { state.wake = e.target.value; save(); haptic("tap"); render(); } });
+  document.querySelectorAll(".stepper").forEach(s => s.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    const k = s.dataset.key, step = +s.dataset.step, min = +s.dataset.min, max = +s.dataset.max;
+    state[k] = Math.max(min, Math.min(max, state[k] + step * +b.dataset.dir));
+    save(); haptic("tap"); render();
+  }));
+  $("list").addEventListener("click", (e) => { if (e.target.closest(".card")) haptic("light"); });
+
+  render();
+  setInterval(render, 30000);
+})();
+</script>
+</body>
+</html>
